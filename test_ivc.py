@@ -10,8 +10,13 @@ import ivc
 
 class Testivc(unittest.testcase):
 
-    def test_(self):
-        self.assertEqual(result)
+    def test_main(self):
+        # Test main function
+        return 0
+
+    def test_vol
+        # Test iterative volatility solver
+        return 0
 
 if __name__ == '__main__':
     unittest.main()
