@@ -13,27 +13,21 @@ Installation of NumPy, SciPy and Pandas using pip --> $ python3 -m pip install -
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
-
-
+import sys
 
 """
-----------------------------------------------------------------------------------------------------------
-            Import CSV
-----------------------------------------------------------------------------------------------------------
+------------------------------------------------------
+            PROGRESS BAR
+------------------------------------------------------
 """
 
-def import_csv(input_csv):
-    """
-    Use Pandas library to import data from file, check formatting.
-    The input must be a string --> "<filename>.csv"
-    """ 
-    df = pd.read_csv(input_csv, na_values = ['no info', '.'], index_col = 0)
-    if len(df[0]) != 9:
-        raise Exception("Input csv file must contain 9 colums: 'ID', Underlying Type',\
-                         'Underlying', 'Risk-free rate', 'Days To Expiry', 'Strike', \
-                         'Option Type','Model Type, 'Market Price'. ")
-    
-    return df
+def update_progress(job_title, progress):
+    length = 100                               # Modify this to change the length
+    block = int(round(length*progress))
+    msg = "\r{0}: [{1}] {2}%".format(job_title, "#"*block + "-"*(length-block), round(progress*100, 4))
+    if progress >= 1: msg += " DONE\r\n"
+    sys.stdout.write(msg)
+    sys.stdout.flush()
 
 
 """
@@ -46,74 +40,88 @@ def import_csv(input_csv):
 S - Market price of the underlying asset
 K - Strike Price
 r - Risk-free interest rate
-q - Dividend rate
 sig - Market volatility
 T - Maturity date
 
-X - Price of call/put from formula
+Y - Price of call/put derived from Back Scholes/Bachelier formula
 """
 
 """
------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------
                 ITERATIVE ROOT FINDING 
------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------
 """
+
 
 def newton(f, df, *args):
-    x0, tol, max_iter = 0., 10e-8, 100
     """
-    This function approximates the solution of f(x;.) = 0 using Netown's method,
+    This function approximates the solution of f(x;.) = Y using Newton's method,
+
     f : f is a multivariable function taking 5 arguments,
-        we are seeking a solution f(S, K, r, x, T) = 0,
-        and searches for a solution in x space,
+        we are seeking a solution f(S, K, r, x, T) = Y searching for a solution in x space,
+        the remaining parameters are fixed,
+
     df : partial derivative of f w.r.t. x,
-    x0 : Initial guess,
-    tol : Stopping criteria |f(x)| < tol,
+    args: --> (Y, S, K, r, T) where
+                f(S, K, r, x, T) = Y,
+    x0 : initial guess,
+    tol : stopping criteria |f(x)| < tol,
     max_iter : Maximum number of iterations of Netwon's method.
 
     """
-    X, S, K, r, T = args
-    xn = x0
+    # Hardcoded paramters --> initial guess, tolerance and maximum iterations
+    xn, tol, max_iter = 1., 10e-8, 100
+    Y, S, K, r, T = (s for s in args)
     for i in range(max_iter):
-        fxn = f(S, K, r, xn, T) - X
+        fxn = f(S, K, r, xn, T) - Y
         if abs(fxn) < tol:
             return xn
-        dfxn = Df(S, K, r, xn, T)
+        dfxn = df(S, K, r, xn, T)
         if dfxn == 0:
-            return None
+            return np.float('nan')
         xn = xn - fxn/dfxn   
-    return None
+    return np.float('nan')
 
 
-def bisection(f, x0, H, L, tol, max_iter):
+
+def bisection(f, *args):
+    """
+    This function approximates the solution of f(x;.) = Y using the bisection method,
+    converges linearly (slow).
+    """
+    #Hardcoded paramters
+    tol, max_iter = 0., 10e-8, 100
+    Y, S, K, r, T = (s for s in args)
+    # Initial range guess
+    L, H = 0.,  5.
     for i in range(max_iter):
-        if abs(H - L) > 10e-8: 
-            if f(S, K, r, (H+L)/2, T) > call:
-                H = (H + L)/2.
-            else:
-                L = (H + L)/2.
+        fxn = f(S, K, r, (H + L)/2., T) - Y
+        if abs(fxn) < 10e-8: 
+            return f(S, K, r, (H+L)/2, T)
+        if fxn > 0:
+            H = (H + L)/2.
+        else:
+            L = (H + L)/2.
+    return np.float('nan')
 
-    return f(S, K, r, (H+L)/2, T)
     
 
-    return 
-
 """
------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
                 FINANCIAL MODELLING FUNCTIONS
------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
 
 BSC_call - Black Scholes model call option price.
-BSC_call_dsig - Black Scholes Model call option derivartive with respect to sigma (impled volatility).
+BSC_call_dsig - Black Scholes model call option derivative with respect to sigma (implied volatility).
 
 BSC_put - Black Scholes model put option price.
-BSC_put_dsig - Black Scholes Model put option derivartive with respect to sigma (impled volatility).
+BSC_put_dsig - Black Scholes model put option derivative with respect to sigma (implied volatility).
 
 BAC_call - Bachelier model call option price.
-BAC_call_dsig - Bachelier Model call option derivartive with respect to sigma (impled volatility).
+BAC_call_dsig - Bachelier model call option derivative with respect to sigma (implied volatility).
 
 BAC_put - Bachelier model put option price.
-BAC_put_dsig - Bachelier model put option derivartive with respect to sigma (impled volatility).
+BAC_put_dsig - Bachelier model put option derivative with respect to sigma (implied volatility).
 
 """
 
@@ -131,14 +139,14 @@ def BSC_call(S, K, r, sig, T):
 def BSC_call_dsig(S, K, r, sig, T):
     """
     Partial derivative of BSC_call w.r.t. sigma (used in Newton's method).
-    Derivative of norm.cdf(x) (w.r.t. x) is norm.pdf(x).
+    Derivative of norm.cdf(x) w.r.t. x is norm.pdf(x).
     """
     d_one = (np.log(S/K) + (r + 0.5*sig*sig) * T)/(sig * np.sqrt(T))
     d_one_dsig = 0.5 * np.sqrt(T)
     d_two = d_one - sig*np.sqrt(T)
     d_two_dsig = d_one_dsig - np.sqrt(T)
 
-    return  S*norm.pdf(d_one)*d_one_dsig - np.exp(-r*T)*K*norm.pdf(d_two)*d_two_sig
+    return  S*norm.pdf(d_one)*d_one_dsig - np.exp(-r*T)*K*norm.pdf(d_two)*d_two_dsig
 
 
 def BSC_put(S, K, r, sig, T):
@@ -147,13 +155,13 @@ def BSC_put(S, K, r, sig, T):
     ...Reference: 
     Uses a formula relating call and put prices.
     """
-    return BlkSc_call(S, K, r, sig, T) - S + np.exp(-r*T)*K # Need to check the variables are correct.
+    return BSC_call(S, K, r, sig, T) - S + np.exp(-r*T)*K # Need to check the variables are correct.
 
 def BSC_put_dsig(S, K, r, sig, T):
     """
     Partial derivative of BSC_call w.r.t. sigma (used in Newton's method).
     Identical to the BSC_call derivative.
-    Derivative of norm.cdf(x) (w.r.t. x) is norm.pdf(x).
+    Derivative of norm.cdf(x) w.r.t. x is norm.pdf(x).
     """
     return BSC_call_dsig(S, K, r, sig, T)
 
@@ -172,7 +180,7 @@ def BAC_call(S, K, r, sig, T):
 def BAC_call_dsig(S, K, r, sig, T):
     """
     Partial derivative of Bac_call w.r.t. sigma.
-    Derivative of norm.cdf(x) (w.r.t. x) is norm.pdf(x).
+    Derivative of norm.cdf(x) w.r.t. x is norm.pdf(x).
     """
     d_one = (S - K)/(sig*np.sqrt(T))
     d_one_sig = (K - S)/(sig*sig*np.sqrt(T))
@@ -182,7 +190,7 @@ def BAC_call_dsig(S, K, r, sig, T):
 
 def BAC_put(S, K, r, sig, T):
     """
-    This computes the market price of a PUT option using the Bacehelier model.
+    This function computes the market price of a PUT option using the Bacehelier model.
     ...Reference for formula -  http://unriskinsight.blogspot.com/2013/10/black-vs-bachelier-revisited.html
     Uses a formula relating call and put prices.
     """
@@ -196,46 +204,28 @@ def BAC_put_dsig(S, K, r, sig, T):
     """
     return BAC_call_dsig(S, K, r, sig, T)
 
-"""
-# Check example call/put values (TESTING)
-print("Black Scholes Call:", BlkSc_call(100, 90, 0.01, 0.1, 1))
-print("Black Scholes Put:", BlkSc_put(100, 90, 0.01, 0.1, 1))
-print("Bachelier Call", Bach_call(100, 90, 0.01, 0.1, 1))
-print("Bachelier Put", Bach_put(100, 90, 0.01, 0.1, 1))
-quit()
-"""
 
 
+"""
+--------------------------------------------------------------------------------------------------------------
+                                 IMPLIED VOLATILITY SOLVERS
+--------------------------------------------------------------------------------------------------------------
+"""
 
 """
 Black Scholes model volatility calculator.
 """
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (Change to Newton Method)
-def BSC_imvol(X, S, K, r, T, option_type):
+def BSC_imvol(Y, S, K, r, T, op_type):
     """ 
-    This function solves the inverse pricing problem for market volatility based on the Black Scholes model of option pricing.
-    The function iterates using the bisection method until the volatility solution is within tolerance and converges linearly
-    (we could use a faster iteration method, such as Newton's method, but let's keep it simple for now).
+    This function solves the inverse pricing problem for market volatility based on the 
+    Black Scholes model of option pricing. The function iterates over IV paramter
+    space using Newton's method until the volatility solution is within tolerance (hard coded).
     """
-    if option_type == "Call":
-        for i in range(max_iter):
-            while abs(X - BSC_call(S, K, r, (H+L)/2, T)) > 10e-8: 
-                if BSC_call(S, K, r, (H+L)/2, T) > call:
-                    H = (H + L)/2.
-                else:
-                    L = (H + L)/2.
+    if op_type == 'Call':
+        return newton(BSC_call, BSC_call_dsig, Y, S, K, r, T)
 
-    elif option_type == "Put":
-        H = 5.
-        L = 0.
-        # Start bisection method
-        while abs(X - BSC_call(S, K, r, (H+L)/2, T)) > 10e-8: 
-            if BSC_put(S, K, r, (H+L)/2, T) > call:
-                H = (H + L)/2
-            else:
-                L = (H + L)/2
-
-        return BSC_put(S, K, r, (H+L)/2, T)
+    elif op_type == 'Put':
+        return newton(BSC_put, BSC_put_dsig, Y, S, K, r, T)
 
     else:
         return np.float('nan')
@@ -244,35 +234,17 @@ def BSC_imvol(X, S, K, r, T, option_type):
 """
 Bachelier model volatility calculator.
 """
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (Change to Newton Method)
-def BAC_imvol(X, S, K, r, sig, T, option_type):
+def BAC_imvol(Y, S, K, r, T, op_type):
     """
-    This function solves the inverse pricing problem for market volatility based on the Bachelier model of option pricing.
-    The function iterates using the bisection method until the volatility solution is within tolerance and converges linearly.
+    This function solves the inverse pricing problem for market volatility based 
+    on the Bachelier model of option pricing. The function iterates over IV paramter
+    space using Newton's method until the volatility solution is within tolerance (hard coded).
     """
-    if option_type == "Call":
-        H = 5.
-        L = 0.
-        # Start bisection method
-        while abs(X - BAC_call(S, K, r, (H+L)/2, T)) > 10e-8: 
-            if BAC_call(S, K, r, (H+L)/2, T) > call:
-                H = (H + L)/2.
-            else:
-                L = (H + L)/2.
+    if op_type == "Call":
+        return newton(BAC_call, BAC_call_dsig, Y, S, K, r, T)
 
-        return BAC_call(S, K, r, (H+L)/2, T)
-
-    elif option_type == "Put":
-        H = 5.
-        L = 0.
-        # Start bisection method
-        while abs(X - BAC_put(S, K, r, (H+L)/2, T)) > 10e-8: 
-            if BAC_put(S, K, r, (H+L)/2, T) > call:
-                H = (H + L)/2
-            else:
-                L = (H + L)/2
-
-        return BAC_put(S, K, r, (H+L)/2, T)
+    elif op_type == "Put":
+        return newton(BAC_put, BAC_put_dsig, Y, S, K, r, T)
 
     else:
         return np.float('nan')
@@ -285,75 +257,68 @@ def BAC_imvol(X, S, K, r, sig, T, option_type):
 -----------------------------------------------------------------------------------------------------------------------------
 """
 
-# !!!!!!!
-def main(input_csv):
+
+def main(input_csv, progress_bar):
     """
     This function takes a csv file containing market trade data, computes implied 
-    volatility and writes a new csv file.  The input must be a string --> "<filename>.csv".
-    thE output will be output.csv.
+    volatility and writes the data to a new csv file.  The input must be a string --> "<filename>.csv".
+    The output will be "output.csv".
     """
-    # check first few rows of input csv (TESTING)
-    input_data = import_csv(input_csv) 
-    print(input_data.head())  
+    # Import csv using Pandas, assign Nan values to empty cells
+    input_data = pd.read_csv(input_csv, na_values = ['no info', '.'] , index_col = 0) 
+    rows = input_data.shape[0]
 
-    """
-    df_new = pd.DataFrame(
-    {
-        'ID': []
-        'Strike': []
-        'Risk-Free Rate': []
-        'Years to Expiry': []
-        'Option Type': []
-        'Model type': []
-        'Implied Volatility': []
-        'Market Price': []   
-    }   
-    )        
-    """
+    # Check that dataframe has the correct number of columns
+    if input_data.shape[1] != 8:
+        raise Exception("Input dataframe not formatted ocrrectly. Should be an array with 9 columns.")
+    
+
     new_data = []
     # Iterate over rows in input csv
-    for i in range(data.shape[0]-1):
+
+    for i in range(rows): 
+        if progress_bar == True:
+            update_progress("Computing implied volatility", i/rows)
+
+ 
+        underlyting_type = input_data['Underlying Type'][i]
+        underlying = input_data['Underlying'][i]
+        strike = input_data['Strike'][i]
+        risk_free = input_data['Risk-Free Rate'][i]
+        years_to_expiry = input_data['Days To Expiry'][i]/365.
+        option_type = input_data['Option Type'][i]
+        model_type = input_data['Model Type'][i]
+        op_market_price = input_data['Market Price'][i] 
         
-        if data['Underlying type'][i+1] == 'Stock':
-            spot = np.float('nan')
-            # Still need to find formula/definition SOLUTION
-        elif data['Underlying type'][i+1] == 'Future':
-            spot = data['Underlying'][i+1]
+        if underlyting_type == 'Stock':
+            spot = underlying
+            # Still need to find formula/definition, not 100% sure about this
+        elif underlyting_type == 'Future':
+            spot = op_market_price
         else: 
             spot = np.float('nan')
 
-        # May be better to use variables directly 
-        _id = data['ID'][i+1]
-        strike = data['Strike'][i+1]
-        risk_free = data['Risk-Free Rate'][i+1]
-        expiry = data['Days To Expiry'][i+1]
-        option_type = data['Option Type'][i+1]
-        model_type = data['Model Type'][i+1]
-        price = data['Market Price'][i+1] 
 
         if model_type == 'BlackScholes':   
-            if option_type == 'Call':
-                implied_volatility = BSC_imvol(price, strike, risk_free, expiry, 'Call') 
-            elif option_type == 'Put':
-                implied_volatility = BSC_imvol(price, strike, risk_free, expiry, 'Put')
+            implied_volatility = BSC_imvol(op_market_price, underlying, strike, risk_free, years_to_expiry, option_type) 
         elif model_type == 'Bachelier':
-            if option_type == 'Call':
-                implied_volatility = BAC_imvol(price, strike, risk_free, expiry,'Call') 
-            elif option_type == 'Put':
-                implied_volatility = BAC_imvol(price, strike, risk_free, expiry, 'Put')
+            implied_volatility = BAC_imvol(op_market_price, underlying, strike, risk_free, years_to_expiry, option_type) 
         else:
             implied_volatility = np.float('nan')
 
 
         # Create dictionary to store new row (with computed implied volatility) and add to list
-        new_data.append({'ID': _id, 'Spot': spot, 'Strike': strike, 'Risk-Free Rate': risk_free, 'Years to Expiry': expiry, \
-                     'Option Type': option_type, 'Model type': model_type, 'Implied Volatility':implied_volatility,\
-                     'Market Price': price})
+        new_data.append({'ID': i, 'Spot': spot, 'Strike': strike, 'Risk-Free Rate': risk_free, 'Years to Expiry': years_to_expiry, \
+                     'Option Type': option_type, 'Model Type': model_type, 'Implied Volatility': implied_volatility,\
+                     'Market Price': op_market_price})
+
+
  
     #Create dataframe use list of dicts
-    df_new = DataFrame(new_data)
+    df_new = pd.DataFrame(new_data, index = None, columns = ['ID', 'Spot', 'Strike', 'Risk-Free Rate', 'Years to Expiry', 
+                          'Option Type', 'Model Type', 'Implied Volatility', 'Market Price'])
    
     return df_new.to_csv("output.csv")
 
-if __name__=='__main__':
-    main("input.csv")
+if __name__ == '__main__':
+    main("input.csv", progress_bar = False)
