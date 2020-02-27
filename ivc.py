@@ -83,29 +83,6 @@ def newton(f, df, *args):
     return np.float('nan')
 
 
-
-def bisection(f, *args):
-    """
-    This function approximates the solution of f(x;.) = Y using the bisection method,
-    converges linearly (slow).
-    """
-    #Hardcoded paramters
-    tol, max_iter = 0., 10e-8, 100
-    Y, S, K, r, T = (s for s in args)
-    # Initial range guess
-    L, H = 0.,  5.
-    for i in range(max_iter):
-        fxn = f(S, K, r, (H + L)/2., T) - Y
-        if abs(fxn) < 10e-8: 
-            return f(S, K, r, (H+L)/2, T)
-        if fxn > 0:
-            H = (H + L)/2.
-        else:
-            L = (H + L)/2.
-    return np.float('nan')
-
-    
-
 """
 -----------------------------------------------------------------------------------------------------
                 FINANCIAL MODELLING FUNCTIONS
@@ -242,10 +219,8 @@ def BAC_imvol(Y, S, K, r, T, op_type):
     """
     if op_type == "Call":
         return newton(BAC_call, BAC_call_dsig, Y, S, K, r, T)
-
     elif op_type == "Put":
         return newton(BAC_put, BAC_put_dsig, Y, S, K, r, T)
-
     else:
         return np.float('nan')
 
@@ -258,10 +233,12 @@ def BAC_imvol(Y, S, K, r, T, op_type):
 """
 
 
-def main(input_csv, progress_bar):
+def main(input_csv, chunk_size, progress_bar):
     """
     This function takes a csv file containing market trade data, computes implied 
-    volatility and writes the data to a new csv file.  The input must be a string --> "<filename>.csv".
+    volatility and writes the data to a new csv file.  The input must be 
+    (string, int, bool) --> ("<filename>.csv", 1000, True)
+    Larger chunk size will use more memory.
     The output will be "output.csv".
     """
     # Import csv using Pandas, assign Nan values to empty cells
@@ -271,15 +248,16 @@ def main(input_csv, progress_bar):
     # Check that dataframe has the correct number of columns
     if input_data.shape[1] != 8:
         raise Exception("Input dataframe not formatted ocrrectly. Should be an array with 9 columns.")
-    
-
+    col_list = ['ID', 'Spot', 'Strike', 'Risk-Free Rate', 'Years to Expiry', 
+                'Option Type', 'Model Type', 'Implied Volatility', 'Market Price']  
+    # Initialize dataframe
     new_data = []
+    df_new = pd.DataFrame(new_data, index = None, columns = col_list)
+    df_new.to_csv("output.csv", mode = 'a', header = False)
     # Iterate over rows in input csv
-
     for i in range(rows): 
         if progress_bar == True:
             update_progress("Computing implied volatility", i/rows)
-
  
         underlyting_type = input_data['Underlying Type'][i]
         underlying = input_data['Underlying'][i]
@@ -291,8 +269,8 @@ def main(input_csv, progress_bar):
         op_market_price = input_data['Market Price'][i] 
         
         if underlyting_type == 'Stock':
-            spot = underlying
             # Still need to find formula/definition, not 100% sure about this
+            spot = underlying
         elif underlyting_type == 'Future':
             spot = op_market_price
         else: 
@@ -306,19 +284,21 @@ def main(input_csv, progress_bar):
         else:
             implied_volatility = np.float('nan')
 
-
         # Create dictionary to store new row (with computed implied volatility) and add to list
         new_data.append({'ID': i, 'Spot': spot, 'Strike': strike, 'Risk-Free Rate': risk_free, 'Years to Expiry': years_to_expiry, \
                      'Option Type': option_type, 'Model Type': model_type, 'Implied Volatility': implied_volatility,\
                      'Market Price': op_market_price})
+        # append dataframe to csv file every chunk_size entries
+        if (i + 1) % chunk_size == 0:
+            #Create dataframe use list of dicts
+            df_new = pd.DataFrame(new_data, index = None, columns = col_list)
+            df_new.to_csv("output.csv", mode = 'a')
+            # clear list
+            new_data = []
 
-
- 
-    #Create dataframe use list of dicts
-    df_new = pd.DataFrame(new_data, index = None, columns = ['ID', 'Spot', 'Strike', 'Risk-Free Rate', 'Years to Expiry', 
-                          'Option Type', 'Model Type', 'Implied Volatility', 'Market Price'])
+    df_new = pd.DataFrame(new_data, index = None, columns = col_list)
+    df_new.to_csv("output.csv", mode = 'a')
    
-    return df_new.to_csv("output.csv")
-
+    
 if __name__ == '__main__':
-    main("input.csv", progress_bar = False)
+    main("input.csv", 5000, progress_bar = True)
