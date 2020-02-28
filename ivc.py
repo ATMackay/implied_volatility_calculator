@@ -107,7 +107,7 @@ def BSC_call(S, K, r, sig, T):
     (optional) replace norm.cdf() with closed form approximation to avoid dependency on SciPy.
     """
     d_one = (np.log(S/K) + (r + 0.5*sig*sig) * T)/(sig * np.sqrt(T))
-    d_two = d_one - sig*np.sqrt(T)
+    d_two = d_one - sig * np.sqrt(T)
 
     return S*norm.cdf(d_one) - np.exp(-r*T)*K*norm.cdf(d_two)
 
@@ -117,7 +117,7 @@ def BSC_call_dsig(S, K, r, sig, T):
     Derivative of norm.cdf(x) w.r.t. x is norm.pdf(x).
     """
     d_one = (np.log(S/K) + (r + 0.5*sig*sig) * T)/(sig * np.sqrt(T))
-    d_one_dsig = 0.5 * np.sqrt(T)
+    d_one_dsig =  (0.5 * T * sig * sig - np.log(S/K) - r * T )/(sig * sig * np.sqrt(T))
     d_two = d_one - sig*np.sqrt(T)
     d_two_dsig = d_one_dsig - np.sqrt(T)
     return  S*norm.pdf(d_one)*d_one_dsig - np.exp(-r*T)*K*norm.pdf(d_two)*d_two_dsig
@@ -155,7 +155,7 @@ def BAC_call_dsig(S, K, r, sig, T):
     """
     d_one = (S - K)/(sig*np.sqrt(T))
     d_one_sig = (K - S)/(sig*sig*np.sqrt(T))
-    pdf_dx = d_one*norm.pdf(d_one)
+    pdf_dx = -d_one*norm.pdf(d_one)
     return ( (S - K)*norm.pdf(d_one)*d_one_sig + np.sqrt(T)*norm.pdf(d_one) + sig*np.sqrt(T)*pdf_dx*d_one_sig )*np.exp(-r*T)
 
 def BAC_put(S, K, r, sig, T):
