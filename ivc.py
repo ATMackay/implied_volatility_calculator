@@ -61,7 +61,7 @@ def newton(f, df, *args):
         the remaining parameters are fixed,
 
     df : partial derivative of f w.r.t. x,
-    args: --> (Y, S, K, r, T) where
+    args: (Y, S, K, r, T) where
                 f(S, K, r, x, T) = Y,
     x0 : initial guess,
     tol : stopping criteria |f(x)| < tol,
@@ -69,7 +69,7 @@ def newton(f, df, *args):
 
     """
     # Hardcoded paramters --> initial guess, tolerance and maximum iterations
-    xn, tol, max_iter = 1., 10e-8, 100
+    xn, tol, max_iter = 0.5, 10e-8, 100
     Y, S, K, r, T = (s for s in args)
     for i in range(max_iter):
         fxn = f(S, K, r, xn, T) - Y
@@ -115,6 +115,7 @@ def BSC_call_dsig(S, K, r, sig, T):
     """
     Partial derivative of BSC_call w.r.t. sigma (used in Newton's method).
     Derivative of norm.cdf(x) w.r.t. x is norm.pdf(x).
+    Derivatives are calculated using a chain and product rule.
     """
     d_one = (np.log(S/K) + (r + 0.5*sig*sig) * T)/(sig * np.sqrt(T))
     d_one_dsig =  (0.5 * T * sig * sig - np.log(S/K) - r * T )/(sig * sig * np.sqrt(T))
@@ -152,6 +153,7 @@ def BAC_call_dsig(S, K, r, sig, T):
     """
     Partial derivative of Bac_call w.r.t. sigma.
     Derivative of norm.cdf(x) w.r.t. x is norm.pdf(x).
+    Derivatives are calculated using a chain and product rule.
     """
     d_one = (S - K)/(sig*np.sqrt(T))
     d_one_sig = (K - S)/(sig*sig*np.sqrt(T))
@@ -175,45 +177,30 @@ def BAC_put_dsig(S, K, r, sig, T):
     return BAC_call_dsig(S, K, r, sig, T)
 
 
-
 """
 --------------------------------------------------------------------------------------------------------------
-                 IMPLIED VOLATILITY SOLVERS
+                    IMPLIED VOLATILITY SOLVER
 --------------------------------------------------------------------------------------------------------------
 """
 
-"""
-Black Scholes model volatility calculator.
-"""
-def BSC_imvol(Y, S, K, r, T, op_type):
+
+def imvol(op_type, model_type, *args):
     """ 
-    This function solves the inverse pricing problem for market volatility based on the 
-    Black Scholes model of option pricing. The function iterates over IV parameter
+    This function solves the inverse pricing problem for market volatility based on either  
+    Black Scholes or Bachelier model of option pricing. The function iterates over IV parameter
     space using Newton's method until the volatility solution is within tolerance (hard coded).
     """
-    if op_type == 'Call':
-        return newton(BSC_call, BSC_call_dsig, Y, S, K, r, T)
-
-    elif op_type == 'Put':
-        return newton(BSC_put, BSC_put_dsig, Y, S, K, r, T)
-
-    else:
-        return np.float('nan')
-
-
-"""
-Bachelier model volatility calculator.
-"""
-def BAC_imvol(Y, S, K, r, T, op_type):
-    """
-    This function solves the inverse pricing problem for market volatility based 
-    on the Bachelier model of option pricing. The function iterates over IV paramter
-    space using Newton's method until the volatility solution is within tolerance (hard coded).
-    """
-    if op_type == "Call":
-        return newton(BAC_call, BAC_call_dsig, Y, S, K, r, T)
-    elif op_type == "Put":
-        return newton(BAC_put, BAC_put_dsig, Y, S, K, r, T)
+    Y, S, K, r, T = (s for s in args)
+    if model_type == 'BlackScholes':   
+        if op_type == 'Call':  
+            return newton(BSC_call, BSC_call_dsig, Y, S, K, r, T)
+        elif op_type == "Put":
+            return newton(BSC_put, BSC_put_dsig, Y, S, K, r, T)
+    if model_type == 'Bachelier':
+        if op_type == "Call":
+            return newton(BAC_call, BAC_call_dsig, Y, S, K, r, T)
+        elif op_type == "Put":
+            return newton(BAC_put, BAC_put_dsig, Y, S, K, r, T)
     else:
         return np.float('nan')
 
@@ -227,9 +214,9 @@ def main(input_csv, chunk_size, progress_bar):
     """
     This function takes a csv file containing market trade data, computes implied 
     volatility and writes the data to a new csv file.  The input must be 
-    (string, int, bool) --> ("<filename>.csv", 1000, True)
+    (string, int, bool) --> e.g. ("<filename>.csv", 1000, True)
     Larger chunk size will use more memory.
-    The output will be "output.csv".
+    The output will be file --> "output.csv".
     """
     # Import csv using Pandas, assign Nan values to empty cells
     input_data = pd.read_csv(input_csv, na_values = ['no info', '.'] , index_col = 0) 
@@ -243,7 +230,7 @@ def main(input_csv, chunk_size, progress_bar):
     # Initialize dataframe
     new_data = []
     df_new = pd.DataFrame(new_data, index = None, columns = col_list)
-    df_new.to_csv("output.csv", mode = 'a', header = False)
+    df_new.to_csv("output.csv", header = True, index = False)
     # Iterate over rows in input csv
     for i in range(rows): 
         if progress_bar == True:
@@ -259,20 +246,15 @@ def main(input_csv, chunk_size, progress_bar):
         op_market_price = input_data['Market Price'][i] 
         
         if underlyting_type == 'Stock':
-            # Still need to find formula/definition, not 100% sure about this
+            # Still need to find formula/definition, not 100% sure about this.
             spot = underlying
         elif underlyting_type == 'Future':
             spot = op_market_price
         else: 
             spot = np.float('nan')
 
-
-        if model_type == 'BlackScholes':   
-            implied_volatility = BSC_imvol(op_market_price, underlying, strike, risk_free, years_to_expiry, option_type) 
-        elif model_type == 'Bachelier':
-            implied_volatility = BAC_imvol(op_market_price, underlying, strike, risk_free, years_to_expiry, option_type) 
-        else:
-            implied_volatility = np.float('nan')
+        # Calculate impled volatility using imvol()
+        implied_volatility = imvol(option_type, model_type, op_market_price, underlying, strike, risk_free, years_to_expiry)
 
         # Create dictionary to store new row (with computed implied volatility) and add to list
         new_data.append({'ID': i, 'Spot': spot, 'Strike': strike, 'Risk-Free Rate': risk_free, 'Years to Expiry': years_to_expiry, \
@@ -282,13 +264,13 @@ def main(input_csv, chunk_size, progress_bar):
         if (i + 1) % chunk_size == 0:
             #Create dataframe use list of dicts
             df_new = pd.DataFrame(new_data, index = None, columns = col_list)
-            df_new.to_csv("output.csv", mode = 'a')
+            df_new.to_csv("output.csv", mode = 'a', na_rep = 'NaN', header = False, index = False)
             # Clear list
             new_data = []
 
     df_new = pd.DataFrame(new_data, index = None, columns = col_list)
-    df_new.to_csv("output.csv", mode = 'a')
+    df_new.to_csv("output.csv", mode = 'a', na_rep = 'NaN', header = False, index = False)
    
     
 if __name__ == '__main__':
-    main("input.csv", chunk_size=5000, progress_bar = True)
+    main("input.csv", chunk_size = 5000, progress_bar = True)
