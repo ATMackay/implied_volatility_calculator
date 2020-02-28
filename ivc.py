@@ -22,7 +22,7 @@ import sys
 """
 
 def update_progress(job_title, progress):
-    length = 100                               # Modify this to change the length
+    length = 50                               # Modify this to change the length of the bar
     block = int(round(length*progress))
     msg = "\r{0}: [{1}] {2}%".format(job_title, "#"*block + "-"*(length-block), round(progress*100, 4))
     if progress >= 1: msg += " DONE\r\n"
@@ -32,7 +32,7 @@ def update_progress(job_title, progress):
 
 """
 ------------------------------------------------------------------------------------------------------------
-                         MATHEMATICAL FUNCTIONS
+                                    MATHEMATICAL FUNCTIONS
 ------------------------------------------------------------------------------------------------------------
     
     VARIABLES
@@ -40,18 +40,17 @@ def update_progress(job_title, progress):
 S - Market price of the underlying asset
 K - Strike Price
 r - Risk-free interest rate
-sig - Market volatility
+sig - Implied volatility
 T - Maturity date
 
-Y - Price of call/put derived from Back Scholes/Bachelier formula
+Y - Price of call/put option derived from Back Scholes/Bachelier formula
 """
 
 """
 -------------------------------------------------------------------------------------------
-                ITERATIVE ROOT FINDING 
+             ITERATIVE ROOT FINDING 
 -------------------------------------------------------------------------------------------
 """
-
 
 def newton(f, df, *args):
     """
@@ -85,7 +84,7 @@ def newton(f, df, *args):
 
 """
 -----------------------------------------------------------------------------------------------------
-                FINANCIAL MODELLING FUNCTIONS
+             FINANCIAL MODELLING FUNCTIONS
 -----------------------------------------------------------------------------------------------------
 
 BSC_call - Black Scholes model call option price.
@@ -101,11 +100,10 @@ BAC_put - Bachelier model put option price.
 BAC_put_dsig - Bachelier model put option derivative with respect to sigma (implied volatility).
 
 """
-
 def BSC_call(S, K, r, sig, T):
     """
     This function computes the market price of a CALL option (non-dividend paying) using the Black Scholes model
-    Reference: 
+    Reference: https://www.journals.uchicago.edu/doi/10.1086/260062 (cited in Wiki)
     (optional) replace norm.cdf() with closed form approximation to avoid dependency on SciPy.
     """
     d_one = (np.log(S/K) + (r + 0.5*sig*sig) * T)/(sig * np.sqrt(T))
@@ -122,17 +120,16 @@ def BSC_call_dsig(S, K, r, sig, T):
     d_one_dsig = 0.5 * np.sqrt(T)
     d_two = d_one - sig*np.sqrt(T)
     d_two_dsig = d_one_dsig - np.sqrt(T)
-
     return  S*norm.pdf(d_one)*d_one_dsig - np.exp(-r*T)*K*norm.pdf(d_two)*d_two_dsig
 
 
 def BSC_put(S, K, r, sig, T):
     """
     This computes the market price of a PUT option using the Balck Scholes Model 
-    ...Reference: 
+    ...Reference: https://www.journals.uchicago.edu/doi/10.1086/260062 (cited in Wiki)
     Uses a formula relating call and put prices.
     """
-    return BSC_call(S, K, r, sig, T) - S + np.exp(-r*T)*K # Need to check the variables are correct.
+    return BSC_call(S, K, r, sig, T) - S + np.exp(-r*T)*K 
 
 def BSC_put_dsig(S, K, r, sig, T):
     """
@@ -148,11 +145,8 @@ def BAC_call(S, K, r, sig, T):
     ... Formula Reference :  http://unriskinsight.blogspot.com/2013/10/black-vs-bachelier-revisited.html 
     (optional) replace norm.cdf() with closed form approximation to avoid dependency on SciPy.
     """
-
     d_one = (S - K)/(sig*np.sqrt(T))
-
     return ( (S - K)*norm.cdf(d_one) + sig*np.sqrt(T)*norm.pdf(d_one) )*np.exp(-r*T)
-
 
 def BAC_call_dsig(S, K, r, sig, T):
     """
@@ -162,7 +156,6 @@ def BAC_call_dsig(S, K, r, sig, T):
     d_one = (S - K)/(sig*np.sqrt(T))
     d_one_sig = (K - S)/(sig*sig*np.sqrt(T))
     pdf_dx = d_one*norm.pdf(d_one)
-
     return ( (S - K)*norm.pdf(d_one)*d_one_sig + np.sqrt(T)*norm.pdf(d_one) + sig*np.sqrt(T)*pdf_dx*d_one_sig )*np.exp(-r*T)
 
 def BAC_put(S, K, r, sig, T):
@@ -185,7 +178,7 @@ def BAC_put_dsig(S, K, r, sig, T):
 
 """
 --------------------------------------------------------------------------------------------------------------
-                                 IMPLIED VOLATILITY SOLVERS
+                 IMPLIED VOLATILITY SOLVERS
 --------------------------------------------------------------------------------------------------------------
 """
 
@@ -195,7 +188,7 @@ Black Scholes model volatility calculator.
 def BSC_imvol(Y, S, K, r, T, op_type):
     """ 
     This function solves the inverse pricing problem for market volatility based on the 
-    Black Scholes model of option pricing. The function iterates over IV paramter
+    Black Scholes model of option pricing. The function iterates over IV parameter
     space using Newton's method until the volatility solution is within tolerance (hard coded).
     """
     if op_type == 'Call':
@@ -224,14 +217,11 @@ def BAC_imvol(Y, S, K, r, T, op_type):
     else:
         return np.float('nan')
 
-
-
 """
 -----------------------------------------------------------------------------------------------------------------------------
-                         MAIN FUNCTION
+                                        MAIN FUNCTION
 -----------------------------------------------------------------------------------------------------------------------------
 """
-
 
 def main(input_csv, chunk_size, progress_bar):
     """
@@ -288,12 +278,12 @@ def main(input_csv, chunk_size, progress_bar):
         new_data.append({'ID': i, 'Spot': spot, 'Strike': strike, 'Risk-Free Rate': risk_free, 'Years to Expiry': years_to_expiry, \
                      'Option Type': option_type, 'Model Type': model_type, 'Implied Volatility': implied_volatility,\
                      'Market Price': op_market_price})
-        # append dataframe to csv file every chunk_size entries
+        # Append dataframe to csv file every chunk_size entries
         if (i + 1) % chunk_size == 0:
             #Create dataframe use list of dicts
             df_new = pd.DataFrame(new_data, index = None, columns = col_list)
             df_new.to_csv("output.csv", mode = 'a')
-            # clear list
+            # Clear list
             new_data = []
 
     df_new = pd.DataFrame(new_data, index = None, columns = col_list)
@@ -301,4 +291,4 @@ def main(input_csv, chunk_size, progress_bar):
    
     
 if __name__ == '__main__':
-    main("input.csv", 5000, progress_bar = True)
+    main("input.csv", chunk_size=5000, progress_bar = True)
