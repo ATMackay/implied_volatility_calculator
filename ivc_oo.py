@@ -18,10 +18,14 @@ from scipy.stats import norm
 import sys
 
 
-class Volsolver:
-    """ 
+class VolSolver:
+    """
+    Python class containing mathematical functions for modelling call and put option prices.
+
+
+    ------------------------------------------------------------------------ 
         VARIABLES
-        ---------
+    ------------------------------------------------------------------------
     Y - Price of call/put option derived from Back Scholes/Bachelier formula
     S - Market price of the underlying asset
     K - Strike Price
@@ -43,18 +47,18 @@ class Volsolver:
         self.T = T
         if self.model_type == 'BlackScholes':
             if self.op_type == 'Call':
-                self.f = Volsolver.BSC_call
-                self.df = Volsolver.BSC_call_dsig
+                self.f = VolSolver.BSC_call
+                self.df = VolSolver.BSC_call_dsig
             elif self.op_type == 'Put':
-                self.f = Volsolver.BSC_put
-                self.df = Volsolver.BSC_put_dsig
+                self.f = VolSolver.BSC_put
+                self.df = VolSolver.BSC_put_dsig
         elif self.model_type == 'Bachelier':
             if self.op_type == 'Call':
-                self.f = Volsolver.BAC_call
-                self.df = Volsolver.BAC_call_dsig
+                self.f = VolSolver.BAC_call
+                self.df = VolSolver.BAC_call_dsig
             elif self.op_type == 'Put':
-                self.f = Volsolver.BAC_put
-                self.df = Volsolver.BAC_put_dsig
+                self.f = VolSolver.BAC_put
+                self.df = VolSolver.BAC_put_dsig
 
     """
     -------------------------------------------------------------------------------------------
@@ -142,7 +146,7 @@ class Volsolver:
         Uses a formula relating call and put prices.
         """
         S, K, r, sig, T = self.S, self.K, self.r, self.sig, self.T
-        return Volsolver.BSC_call(self) - S + np.exp(-r*T)*K 
+        return VolSolver.BSC_call(self) - S + np.exp(-r*T)*K 
 
     def BSC_put_dsig(self):
         """
@@ -150,7 +154,7 @@ class Volsolver:
         Identical to the BSC_call derivative.
         Derivative of norm.cdf(x) w.r.t. x is norm.pdf(x).
         """
-        return Volsolver.BSC_call_dsig(self)
+        return VolSolver.BSC_call_dsig(self)
 
     def BAC_call(self):
         """
@@ -189,95 +193,103 @@ class Volsolver:
         Partial derivative of Bac_call w.r.t. sigma.
         Identical to the Bac_call derivative.
         """
-        return Volsolver.BAC_call_dsig(self)
+        return VolSolver.BAC_call_dsig(self)
 
 
-
-"""
-------------------------------------------------------
-            PROGRESS BAR
-------------------------------------------------------
-"""
-
-def update_progress(job_title, progress):
-    length = 50                               # Modify this to change the length of the bar
-    block = int(round(length*progress))
-    msg = "\r{0}: [{1}] {2}%".format(job_title, "#"*block + "-"*(length-block), round(progress*100, 4))
-    if progress >= 1: msg += " DONE\r\n"
-    sys.stdout.write(msg)
-    sys.stdout.flush()
-
-
-"""
------------------------------------------------------------------------------------------------------------------------------
-                                        MAIN FUNCTION
------------------------------------------------------------------------------------------------------------------------------
-"""
-
-def main(input_csv, chunk_size, progress_bar):
+class OptionData(VolSolver):
     """
-    This function takes a csv file containing market trade data, computes implied 
-    volatility and writes the data to a new csv file.  The input must be 
-    (string, int, bool) --> e.g. ("<filename>.csv", 1000, True)
-    Larger chunk size will use more memory.
-    The output will be file --> "output.csv".
+    Python class containing main routinefor computing option data.
     """
-    # Import csv using Pandas, assign Nan values to empty cells
-    input_data = pd.read_csv(input_csv, na_values = ['no info', '.'] , index_col = 0) 
-    rows = input_data.shape[0]
 
-    # Check that dataframe has the correct number of columns
-    if input_data.shape[1] != 8:
-        raise Exception("Input dataframe not formatted ocrrectly. Should be an array with 9 columns.")
-    col_list = ['ID', 'Spot', 'Strike', 'Risk-Free Rate', 'Years to Expiry', 
-                'Option Type', 'Model Type', 'Implied Volatility', 'Market Price']  
-    # Initialize dataframe
-    new_data = []
-    df_new = pd.DataFrame(new_data, index = None, columns = col_list)
-    df_new.to_csv("output.csv", header = True, index = False)
+    def __init__(self, input_csv, chunk_size, progress_bar):
+        #super().__init__()       
+        self.input_csv = input_csv
+        self.chunk_size = chunk_size
+        self.progress_bar = progress_bar
+    """
+    ------------------------------------------------------
+                PROGRESS BAR
+    ------------------------------------------------------
+    """
 
-    # Volatility initial guess
-    sig_init_guess = 0.5
-    # Iterate over rows in input csv
-    for i in range(rows): 
-        if progress_bar == True:
-            update_progress("Computing implied volatility", i/rows)
- 
-        underlyting_type = input_data['Underlying Type'][i]
-        underlying = input_data['Underlying'][i]
-        strike = input_data['Strike'][i]
-        risk_free = input_data['Risk-Free Rate'][i]
-        years_to_expiry = input_data['Days To Expiry'][i]/365.
-        option_type = input_data['Option Type'][i]
-        model_type = input_data['Model Type'][i]
-        op_market_price = input_data['Market Price'][i] 
-        
-        if underlyting_type == 'Stock':
-            # Still need to find formula/definition, not 100% sure about this.
-            spot = underlying
-        elif underlyting_type == 'Future':
-            spot = op_market_price
-        else: 
-            spot = np.float('nan')
+    def update_progress(self, progress):
+        length = 50                               # Modify this to change the length of the bar
+        block = int(round(length*progress))
+        msg = "\r{0}: [{1}] {2}%".format("Computing implied volatility", "#"*block + "-"*(length-block), round(progress*100, 4))
+        if progress >= 1: msg += " DONE\r\n"
+        sys.stdout.write(msg)
+        sys.stdout.flush()
 
-        # Calculate impled volatility using imvol()
-        implied_volatility = Volsolver(option_type, model_type, op_market_price, underlying, strike, risk_free, sig_init_guess, years_to_expiry).newton_solver()
+    """
+    -----------------------------------------------------------------------------------------------------------------------------
+                                            MAIN FUNCTION
+    -----------------------------------------------------------------------------------------------------------------------------
+    """
 
-        # Create dictionary to store new row (with computed implied volatility) and add to list
-        new_data.append({'ID': i, 'Spot': spot, 'Strike': strike, 'Risk-Free Rate': risk_free, 'Years to Expiry': years_to_expiry, \
-                     'Option Type': option_type, 'Model Type': model_type, 'Implied Volatility': implied_volatility,\
-                     'Market Price': op_market_price})
-        # Append dataframe to csv file every chunk_size entries
-        if (i + 1) % chunk_size == 0:
-            #Create dataframe use list of dicts
-            df_new = pd.DataFrame(new_data, index = None, columns = col_list)
-            df_new.to_csv("output.csv", mode = 'a', na_rep = 'NaN', header = False, index = False)
-            # Clear list
-            new_data = []
+    def main(self):
+        """
+        This function takes a csv file containing market trade data, computes implied 
+        volatility and writes the data to a new csv file.  The input must be 
+        (string, int, bool) --> e.g. ("<filename>.csv", 1000, True)
+        Larger chunk size will use more memory.
+        The output will be file --> "output.csv".
+        """
+        # Import csv using Pandas, assign Nan values to empty cells
+        input_data = pd.read_csv(self.input_csv, na_values = ['no info', '.'] , index_col = 0) 
+        rows = input_data.shape[0]
 
-    df_new = pd.DataFrame(new_data, index = None, columns = col_list)
-    df_new.to_csv("output.csv", mode = 'a', na_rep = 'NaN', header = False, index = False)
+        # Check that dataframe has the correct number of columns
+        if input_data.shape[1] != 8:
+            raise Exception("Input dataframe not formatted ocrrectly. Should be an array with 9 columns.")
+        col_list = ['ID', 'Spot', 'Strike', 'Risk-Free Rate', 'Years to Expiry', 
+                    'Option Type', 'Model Type', 'Implied Volatility', 'Market Price']  
+        # Initialize dataframe
+        new_data = []
+        df_new = pd.DataFrame(new_data, index = None, columns = col_list)
+        df_new.to_csv("output.csv", header = True, index = False)
+
+        # Volatility initial guess
+        sig_init_guess = 0.5
+        # Iterate over rows in input csv
+        for i in range(rows): 
+            if self.progress_bar == True:
+                OptionData.update_progress(self, i/rows)
+     
+            underlyting_type = input_data['Underlying Type'][i]
+            underlying = input_data['Underlying'][i]
+            strike = input_data['Strike'][i]
+            risk_free = input_data['Risk-Free Rate'][i]
+            years_to_expiry = input_data['Days To Expiry'][i]/365.
+            option_type = input_data['Option Type'][i]
+            model_type = input_data['Model Type'][i]
+            op_market_price = input_data['Market Price'][i] 
+            
+            if underlyting_type == 'Stock':
+                # Still need to find formula/definition, not 100% sure about this.
+                spot = underlying
+            elif underlyting_type == 'Future':
+                spot = op_market_price
+            else: 
+                spot = np.float('nan')
+
+            # Calculate impled volatility using imvol()
+            implied_volatility = VolSolver(option_type, model_type, op_market_price, underlying, strike, risk_free, sig_init_guess, years_to_expiry).newton_solver()
+
+            # Create dictionary to store new row (with computed implied volatility) and add to list
+            new_data.append({'ID': i, 'Spot': spot, 'Strike': strike, 'Risk-Free Rate': risk_free, 'Years to Expiry': years_to_expiry, \
+                         'Option Type': option_type, 'Model Type': model_type, 'Implied Volatility': implied_volatility,\
+                         'Market Price': op_market_price})
+            # Append dataframe to csv file every chunk_size entries
+            if (i + 1) % self.chunk_size == 0:
+                #Create dataframe use list of dicts
+                df_new = pd.DataFrame(new_data, index = None, columns = col_list)
+                df_new.to_csv("output.csv", mode = 'a', na_rep = 'NaN', header = False, index = False)
+                # Clear list
+                new_data = []
+
+        df_new = pd.DataFrame(new_data, index = None, columns = col_list)
+        df_new.to_csv("output.csv", mode = 'a', na_rep = 'NaN', header = False, index = False)
    
     
 if __name__ == '__main__':
-    main("input.csv", chunk_size = 5000, progress_bar = True)
+    OptionData("input.csv", chunk_size = 5000, progress_bar = True).main()
