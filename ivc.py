@@ -38,7 +38,7 @@ Y - Price of call/put option derived from Back Scholes/Bachelier formula
 -------------------------------------------------------------------------------------------
 """
 
-def newton(f, df, *args):
+def newton(f, df, initial_guess, *args):
     """
     This function approximates the solution of f(x;.) = Y using Newton's method,
 
@@ -55,10 +55,10 @@ def newton(f, df, *args):
 
     """
     # Hardcoded paramters --> initial guess, tolerance and maximum iterations
-    tol, max_iter = 10e-8, 100
+    tol, max_iter = 10e-10, 100
     Y, S, K, r, T = (s for s in args)
-    # Use Brenner Subrahmanyam (1988) approxiamtion as initial guess
-    xn = np.sqrt(2*np.pi/T)*Y/S
+    # Use Brenner Subrahmanyam (1988) approximation as initial guess
+    xn = initial_guess
     for i in range(max_iter):
         fxn = f(S, K, r, xn, T) - Y
         if abs(fxn) < tol:
@@ -66,7 +66,7 @@ def newton(f, df, *args):
         dfxn = df(S, K, r, xn, T)
         if dfxn == 0:
             return np.float('nan')
-        xn = xn - (fxn)/dfxn   
+        xn = xn - fxn/dfxn 
     return np.float('nan')
 
 
@@ -145,9 +145,12 @@ def BAC_call_dsig(S, K, r, sig, T):
     Derivatives are calculated using a chain and product rule.
     """
     d_one = (S - K)/(sig*np.sqrt(T))
-    d_one_sig = (K - S)/(sig*sig*np.sqrt(T))
-    pdf_dx = - d_one*norm.pdf(d_one)
-    return ( (S - K)*norm.pdf(d_one)*d_one_sig + np.sqrt(T)*norm.pdf(d_one) + sig*np.sqrt(T)*pdf_dx*d_one_sig )*np.exp(-r*T)
+    d_one_dsig = (K - S)/(sig*sig*np.sqrt(T))
+    pdf_dsig = - d_one*norm.pdf(d_one)*d_one_dsig
+
+    return ( (S - K)*norm.pdf(d_one)*d_one_dsig + np.sqrt(T)*norm.pdf(d_one) + sig*np.sqrt(T)*pdf_dsig )*np.exp(-r*T)
+
+
 
 def BAC_put(S, K, r, sig, T):
     """
@@ -163,6 +166,7 @@ def BAC_put_dsig(S, K, r, sig, T):
     Partial derivative of Bac_call w.r.t. sigma.
     Identical to the Bac_call derivative.
     """
+    d_one = (S - K)/(sig*np.sqrt(T))
     return BAC_call_dsig(S, K, r, sig, T)
 
 
@@ -180,18 +184,22 @@ def imvol(op_type, model_type, *args):
     space using Newton's method until the volatility solution is within tolerance (hard coded).
     """
     Y, S, K, r, T = (s for s in args)
-    if model_type == 'BlackScholes':   
+    if model_type == 'BlackScholes':
+        x0 = np.sqrt(2*np.pi/T)*Y/S   
         if op_type == 'Call':  
-            return newton(BSC_call, BSC_call_dsig, Y, S, K, r, T)
+            return newton(BSC_call, BSC_call_dsig, x0, Y, S, K, r, T)
         elif op_type == "Put":
-            return newton(BSC_put, BSC_put_dsig, Y, S, K, r, T)
+            return newton(BSC_put, BSC_put_dsig, x0, Y, S, K, r, T)
     if model_type == 'Bachelier':
+        x0 = np.sqrt(2*np.pi/T)*Y/S
         if op_type == "Call":
-            return newton(BAC_call, BAC_call_dsig, Y, S, K, r, T)
+            return newton(BAC_call, BAC_call_dsig, x0, Y, S, K, r, T)
         elif op_type == "Put":
-            return newton(BAC_put, BAC_put_dsig, Y, S, K, r, T)
+            return newton(BAC_put, BAC_put_dsig, x0, Y, S, K, r, T)
     else:
         return np.float('nan')
+
+
 
 """
 -----------------------------------------------------------------------------------------------------------------------------
