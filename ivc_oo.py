@@ -8,7 +8,7 @@ trade and ouputs a new csv file.
 
 Installation of NumPy, SciPy and Pandas using pip --> $ python3 -m pip install --user numpy scipy panda.
 
-This Python code is OO, all solver functions are contained in the class 'Volsolver'.
+This Python code is OO. All solver functions are contained in the class 'Volsolver' which is instantiated .
 
 """
 
@@ -196,6 +196,82 @@ class VolSolver:
         return VolSolver.BAC_call_dsig(self)
 
 
+
+class OptionData(VolSolver):
+    """
+    Python class containing main routinefor computing option data.
+    """
+
+    def __init__(self, input_csv, chunk_size, progress_bar):
+        #super().__init__()       
+        self.input_csv = input_csv
+        self.chunk_size = chunk_size
+        self.progress_bar = progress_bar
+
+    def start(self):
+        """
+        This function takes a csv file containing market trade data, computes implied 
+        volatility and writes the data to a new csv file.  The input must be 
+        (string, int, bool) --> e.g. ("<filename>.csv", 1000, True)
+        Larger chunk size will use more memory.
+        The output will be file --> "output.csv".
+        """
+        # Import csv using Pandas, assign Nan values to empty cells
+        input_data = pd.read_csv(self.input_csv, na_values = ['no info', '.'] , index_col = 0) 
+        rows = input_data.shape[0]
+        # Initialize dataframe
+        new_data = []
+        df_new = pd.DataFrame(new_data, index = None, columns = col_list)
+        df_new.to_csv("output.csv", header = True, index = False)
+
+        # Volatility initial guess
+        sig_init_guess = 0.5
+        # Iterate over rows in input csv
+        for i in range(rows): 
+            if self.progress_bar == True:
+                # Display progress in terminal
+                progress = i/rows
+                msg = "\r{0}: {1}%".format("Computing implied volatility", round(progress*100, 4))
+                sys.stdout.write(msg)
+                sys.stdout.flush()
+     
+            underlyting_type = input_data['Underlying Type'][i]
+            underlying = input_data['Underlying'][i]
+            strike = input_data['Strike'][i]
+            risk_free = input_data['Risk-Free Rate'][i]
+            years_to_expiry = input_data['Days To Expiry'][i]/365.
+            option_type = input_data['Option Type'][i]
+            model_type = input_data['Model Type'][i]
+            op_market_price = input_data['Market Price'][i] 
+            
+            if underlyting_type == 'Stock':
+                # Still need to find formula/definition, not 100% sure about this.
+                spot = underlying
+            elif underlyting_type == 'Future':
+                spot = op_market_price
+            else: 
+                spot = np.float('nan')
+
+            # Calculate impled volatility using Volsolver.newton_solver()
+            implied_volatility = VolSolver(option_type, model_type, op_market_price, underlying, strike, risk_free, sig_init_guess, years_to_expiry).newton_solver()
+
+            # Create dictionary to store new row (with computed implied volatility) and add to list
+            new_data.append({'ID': i, 'Spot': spot, 'Strike': strike, 'Risk-Free Rate': risk_free, 'Years to Expiry': years_to_expiry, \
+                         'Option Type': option_type, 'Model Type': model_type, 'Implied Volatility': implied_volatility,\
+                         'Market Price': op_market_price})
+            # Append dataframe to csv file every chunk_size entries
+            if (i + 1) % self.chunk_size == 0:
+                #Create dataframe use list of dicts
+                df_new = pd.DataFrame(new_data, index = None, columns = col_list)
+                df_new.to_csv("output.csv", mode = 'a', na_rep = 'NaN', header = False, index = False)
+                # Clear list
+                new_data = []
+
+        df_new = pd.DataFrame(new_data, index = None, columns = col_list)
+        df_new.to_csv("output.csv", mode = 'a', na_rep = 'NaN', header = False, index = False)
+
+        
+
 """
 -----------------------------------------------------------------------------------------------------------------------------
                                         MAIN FUNCTION
@@ -252,7 +328,7 @@ def main(input_csv, chunk_size, progress_bar):
         else: 
             spot = np.float('nan')
 
-        # Calculate impled volatility using imvol()
+        # Calculate impled volatility using Volsolver.newton_solver()
         implied_volatility = VolSolver(option_type, model_type, op_market_price, underlying, strike, risk_free, sig_init_guess, years_to_expiry).newton_solver()
 
         # Create dictionary to store new row (with computed implied volatility) and add to list
@@ -272,4 +348,5 @@ def main(input_csv, chunk_size, progress_bar):
    
     
 if __name__ == '__main__':
-    main("input.csv", chunk_size = 5000, progress_bar = True)
+    OptionData("input.csv", chunk_size = 5000, progress_bar = True).start()
+    #main("input.csv", chunk_size = 5000, progress_bar = True)

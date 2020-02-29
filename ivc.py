@@ -15,20 +15,6 @@ import pandas as pd
 from scipy.stats import norm
 import sys
 
-"""
-------------------------------------------------------
-            PROGRESS BAR
-------------------------------------------------------
-"""
-
-def update_progress(job_title, progress):
-    length = 50                               # Modify this to change the length of the bar
-    block = int(round(length*progress))
-    msg = "\r{0}: [{1}] {2}%".format(job_title, "#"*block + "-"*(length-block), round(progress*100, 4))
-    if progress >= 1: msg += " DONE\r\n"
-    sys.stdout.write(msg)
-    sys.stdout.flush()
-
 
 """
 ------------------------------------------------------------------------------------------------------------
@@ -69,8 +55,10 @@ def newton(f, df, *args):
 
     """
     # Hardcoded paramters --> initial guess, tolerance and maximum iterations
-    xn, tol, max_iter = 0.5, 10e-8, 100
+    tol, max_iter = 10e-8, 100
     Y, S, K, r, T = (s for s in args)
+    # Use Brenner Subrahmanyam (1988) approxiamtion as initial guess
+    xn = np.sqrt(2*np.pi/T)*Y/S
     for i in range(max_iter):
         fxn = f(S, K, r, xn, T) - Y
         if abs(fxn) < tol:
@@ -78,7 +66,7 @@ def newton(f, df, *args):
         dfxn = df(S, K, r, xn, T)
         if dfxn == 0:
             return np.float('nan')
-        xn = xn - fxn/dfxn   
+        xn = xn - (fxn)/dfxn   
     return np.float('nan')
 
 
@@ -121,6 +109,7 @@ def BSC_call_dsig(S, K, r, sig, T):
     d_one_dsig =  (0.5 * T * sig * sig - np.log(S/K) - r * T )/(sig * sig * np.sqrt(T))
     d_two = d_one - sig*np.sqrt(T)
     d_two_dsig = d_one_dsig - np.sqrt(T)
+
     return  S*norm.pdf(d_one)*d_one_dsig - np.exp(-r*T)*K*norm.pdf(d_two)*d_two_dsig
 
 
@@ -157,7 +146,7 @@ def BAC_call_dsig(S, K, r, sig, T):
     """
     d_one = (S - K)/(sig*np.sqrt(T))
     d_one_sig = (K - S)/(sig*sig*np.sqrt(T))
-    pdf_dx = -d_one*norm.pdf(d_one)
+    pdf_dx = - d_one*norm.pdf(d_one)
     return ( (S - K)*norm.pdf(d_one)*d_one_sig + np.sqrt(T)*norm.pdf(d_one) + sig*np.sqrt(T)*pdf_dx*d_one_sig )*np.exp(-r*T)
 
 def BAC_put(S, K, r, sig, T):
@@ -234,7 +223,11 @@ def main(input_csv, chunk_size, progress_bar):
     # Iterate over rows in input csv
     for i in range(rows): 
         if progress_bar == True:
-            update_progress("Computing implied volatility", i/rows)
+            # Display progress in terminal
+            progress = i/rows
+            msg = "\r{0}: {1}%".format("Computing implied volatility", round(progress*100, 4))
+            sys.stdout.write(msg)
+            sys.stdout.flush()
  
         underlyting_type = input_data['Underlying Type'][i]
         underlying = input_data['Underlying'][i]
