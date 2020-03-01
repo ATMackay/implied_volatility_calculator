@@ -23,7 +23,7 @@ import sys
     
     VARIABLES
     ---------
-S - Market price of the underlying asset
+S - Price of the underlying asset
 K - Strike Price
 r - Risk-free interest rate
 sig - Implied volatility
@@ -34,7 +34,7 @@ Y - Price of call/put option derived from Back Scholes/Bachelier formula
 
 """
 -------------------------------------------------------------------------------------------
-             ITERATIVE ROOT FINDING 
+             IMPLIED VOLATILITY SOLVER (NEWTON'S METHOD) 
 -------------------------------------------------------------------------------------------
 """
 
@@ -237,7 +237,7 @@ def main(input_csv, chunk_size, progress_bar):
             sys.stdout.write(msg)
             sys.stdout.flush()
  
-        underlyting_type = input_data['Underlying Type'][i]
+        underlying_type = input_data['Underlying Type'][i]
         underlying = input_data['Underlying'][i]
         strike = input_data['Strike'][i]
         risk_free = input_data['Risk-Free Rate'][i]
@@ -246,10 +246,10 @@ def main(input_csv, chunk_size, progress_bar):
         model_type = input_data['Model Type'][i]
         op_market_price = input_data['Market Price'][i] 
         
-        if underlyting_type == 'Stock':
+        if underlying_type == 'Stock':
             # Still need to find formula/definition, not 100% sure about this.
             spot = underlying
-        elif underlyting_type == 'Future':
+        elif underlying_type == 'Future':
             spot = op_market_price
         else: 
             spot = np.float('nan')
