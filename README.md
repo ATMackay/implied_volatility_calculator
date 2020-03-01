@@ -1,6 +1,6 @@
-# mako_interview task
+# Mako Interview Task - Alex Mackay 
 
-The implied volatility calculator (ivc) python programme imports trade data from the file "input.csv", calculates the market 
+The implied volatility calculator (ivc) python program imports trade data from the file "input.csv", calculates the market 
 volatility for each trade and exports the data to a new CSV file.
 
 * ivc_oo.py - Object oriented python code containing volatility solver classes,
@@ -12,5 +12,5 @@ volatility for each trade and exports the data to a new CSV file.
 
 * ivc.py - Procedural version (for comparison)
 
-* test_ivc.py - unit test for ivc.py 
+* test_ivc.py - Unit test module for ivc.py 
 
