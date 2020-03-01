@@ -267,7 +267,7 @@ class OptionData(VolSolver):
             else: 
                 spot = np.float('nan')
 
-            # Use Brenner Subrahmanyam (1988) approxiamtion as initial guess
+            # Use Brenner Subrahmanyam (1988) approximation as initial guess
             sig_init_guess = np.sqrt(2*np.pi/years_to_expiry)*op_market_price/underlying
             # Calculate impled volatility using Volsolver.newton_solver()
             implied_volatility = VolSolver(option_type, model_type, op_market_price, underlying, strike, risk_free, sig_init_guess, years_to_expiry).newton_solver()
@@ -278,7 +278,7 @@ class OptionData(VolSolver):
                          'Market Price': op_market_price})
             # Append dataframe to csv file every chunk_size entries
             if (i + 1) % self.chunk_size == 0:
-                #Create dataframe use list of dicts
+                # Create dataframe use list of dicts
                 df_new = pd.DataFrame(new_data, index = None, columns = col_list)
                 df_new.to_csv("output.csv", mode = 'a', na_rep = 'NaN', header = False, index = False)
                 # Clear list
@@ -288,7 +288,6 @@ class OptionData(VolSolver):
         df_new.to_csv("output.csv", mode = 'a', na_rep = 'NaN', header = False, index = False)
 
         
-
     
 if __name__ == '__main__':
     OptionData("input.csv", chunk_size = 5000, progress_bar = True).start()
