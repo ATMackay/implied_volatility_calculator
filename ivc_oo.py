@@ -79,11 +79,11 @@ class VolSolver:
         args: (Y, S, K, r, T) where
                 f(S, K, r, x, T) = Y,
         self.sig : initial guess,
-        tol : stopping criteria |f(S, K, r, x, T)| < tol,
+        tol : stopping criteria |f(S, K, r, x, T) - Y| < tol,
         max_iter : Maximum number of iterations of Netwon's method.
 
         """
-        # Hardcoded paramters --> tolerance and maximum Newton iterations
+        # Hardcoded parameters --> tolerance and maximum Newton iterations
         tol, max_iter = 10e-10, 100
         for i in range(max_iter):
             fxn = self.f(self) - self.Y
